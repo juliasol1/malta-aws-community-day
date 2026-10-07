@@ -33,7 +33,23 @@ terraform init
 terraform plan
 ```
 
-## Networking notes
+## Why separate stacks?
+
+`core` holds the long-lived network everything else plugs into. `backend` holds
+the app that runs on it. Keeping them apart means experimenting with (or
+destroying) the app can never touch the network, and each has a small, fast
+plan.
+
+## Network plan (AWS <-> Azure)
+
+The two clouds will be joined by a private VPN, so their IP ranges must not
+overlap.
+
+| Side  | Owner     | Range          | Status                                   |
+|-------|-----------|----------------|------------------------------------------|
+| Azure | Julia     | `10.20.0.0/16` | Deployed: `awscd-core-vnet` (italynorth) |
+| AWS   | colleague | `10.10.0.0/16` | Reserved for the AWS VPC                 |
 
 - Everything is private: no public IPs, no public endpoints.
-- Azure VNet uses `10.20.0.0/16`; keep the AWS VPC CIDR non-overlapping (e.g. `10.10.0.0/16`).
+- Region is `italynorth` (`westeurope` is not accepting new resources on this
+  subscription).

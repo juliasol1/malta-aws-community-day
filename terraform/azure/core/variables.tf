@@ -13,7 +13,7 @@ variable "tenant_id" {
 variable "location" {
   description = "Azure region for all core resources."
   type        = string
-  default     = "westeurope"
+  default     = "italynorth"
 }
 
 variable "prefix" {
