@@ -45,10 +45,10 @@ plan.
 The two clouds will be joined by a private VPN, so their IP ranges must not
 overlap.
 
-| Side  | Owner     | Range          | Status                                   |
-|-------|-----------|----------------|------------------------------------------|
-| Azure | Julia     | `10.20.0.0/16` | Deployed: `awscd-core-vnet` (italynorth) |
-| AWS   | colleague | `10.10.0.0/16` | Reserved for the AWS VPC                 |
+| Side  | Range          | Status                                   |
+|-------|----------------|------------------------------------------|
+| Azure | `10.20.0.0/16` | Deployed: `awscd-core-vnet` (italynorth) |
+| AWS   | `10.10.0.0/16` | Reserved for the AWS VPC                 |
 
 - Everything is private: no public IPs, no public endpoints.
 - Region is `italynorth` (`westeurope` is not accepting new resources on this
