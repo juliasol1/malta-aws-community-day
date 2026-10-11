@@ -2352,7 +2352,13 @@ class MaltaIsometricScene {
     }
 
     toggleInterconnect() {
-        this.isInterconnectAlive = !this.isInterconnectAlive;
+        this.setInterconnectState(!this.isInterconnectAlive, true);
+    }
+
+    setInterconnectState(alive, notifyBackend = true) {
+        if (this.isInterconnectAlive === alive) return;
+        this.isInterconnectAlive = alive;
+
         const rttEl = document.getElementById('rttDisplay');
         const statusDot = document.getElementById('statusDot');
         const overlay = document.getElementById('disasterOverlay');
@@ -2363,7 +2369,9 @@ class MaltaIsometricScene {
 
         if (!this.isInterconnectAlive) {
             // SEVER THE LINK! (THE DROP)
-            fetch(`${apiBase}/api/interconnect/cut`, { method: 'POST' }).catch(() => {});
+            if (notifyBackend) {
+                fetch(`${apiBase}/api/interconnect/cut`, { method: 'POST' }).catch(() => {});
+            }
             window.soundEngine.playThunderAndCrash();
             statusDot.classList.add('severed');
             rttEl.classList.add('danger');
@@ -2378,7 +2386,9 @@ class MaltaIsometricScene {
             overlay.classList.add('active');
         } else {
             // RESTORE THE LINK!
-            fetch(`${apiBase}/api/interconnect/restore`, { method: 'POST' }).catch(() => {});
+            if (notifyBackend) {
+                fetch(`${apiBase}/api/interconnect/restore`, { method: 'POST' }).catch(() => {});
+            }
             window.soundEngine.playRestore();
             statusDot.classList.remove('severed');
             rttEl.classList.remove('danger');
@@ -2492,6 +2502,20 @@ class MaltaIsometricScene {
             }
             return '';
         };
+
+        // Continuous remote sync: automatically reflect PowerShell, CLI, or API cut/restore calls
+        setInterval(async () => {
+            try {
+                const res = await fetch(`${getApiBase()}/health?t=${Date.now()}`, { cache: 'no-store' });
+                if (res.ok) {
+                    const data = await res.json();
+                    const serverAlive = (data.interconnect_status === 'ONLINE');
+                    if (serverAlive !== this.isInterconnectAlive) {
+                        this.setInterconnectState(serverAlive, false);
+                    }
+                }
+            } catch (e) {}
+        }, 1000);
 
         setInterval(async () => {
             if (!this.isInterconnectAlive) return;

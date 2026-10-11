@@ -204,3 +204,66 @@ tx_id status    target_chip
 | **`[K]`** | **Alternative Cut/Restore** | Backup key if spacebar is used for slide advancer |
 | **Left Click + Drag** | **3D Camera Orbit** | Rotates the 2.5D isometric world around Valletta & Gozo |
 | **Mouse Scroll** | **Zoom In / Out** | Inspects Valletta Citadel, MACsec bridge, or Gozo Citadel |
+
+---
+
+## 🔬 Under the Hood: Exactly What Happens During "Cut" and "Restore"
+
+When you invoke `POST /api/interconnect/cut` or `POST /api/interconnect/restore` (or trigger it via hotkey `[SPACE]` or PowerShell), a multi-tier orchestration occurs across both clouds and the frontend:
+
+### 1. What Happens When We Call "CUT" (`POST /api/interconnect/cut`)
+
+1. **State Mutation on Graviton4 (ECS Fargate)**:
+   - The in-memory link state `interconnect_alive` flips to `False`.
+   - The Graviton4 telemetry daemon simulates a **BGP Route Withdrawal** across the Direct Connect Gateway (`AS 64512`) and the Azure ExpressRoute Gateway (`AS 64513`).
+
+2. **Active Traffic Blackholing**:
+   - Any transaction (`POST /api/transactions`) or ping (`GET /api/azure-ping`) reaching the AWS Application Load Balancer is **immediately intercepted and terminated** at the Graviton4 compute tier.
+   - Graviton4 logs: `[AWS-GRAVITON4] [ERROR] POST /api/transactions -> 502 Bad Gateway [DROPPED: Interconnect SEVERED / BGP Withdrawn]`.
+   - The ALB returns `HTTP 502 Bad Gateway` to clients. Zero packets cross the transit link.
+
+3. **Complete Isolation of Azure Cobalt 100**:
+   - Because no packets cross the transit link, the Azure container at `10.20.1.4:8080` receives **zero incoming requests**.
+   - The SQLite database `/tmp/transactions.db` on Cobalt 100 **completely freezes**. No new rows are inserted into `tx_log`.
+   - Azure logs in the terminal reflect this silence: `[AZURE-COBALT100] [DROP] 0 transactions received across Interconnect (BGP withdrawn)`.
+
+4. **Health Check & Telemetry Metrics**:
+   - The `/health` endpoint transitions:
+     - `"interconnect_status": "SEVERED"`
+     - `"interconnect_rtt_ms": null` (the round-trip time is undefined / infinite)
+   - ALB Target Group CloudWatch metrics log a spike in `HTTPCode_Target_5XX_Count`.
+
+5. **Automatic 3D Scene Synchronization**:
+   - The 3D scene (`game.js`) continuously checks the backend `/health` endpoint every 1 second.
+   - When it detects `SEVERED` (even if triggered remotely via PowerShell), it **instantly triggers the disaster sequence**:
+     - Web Audio API synthesizes a thunderclap and acoustic sea crash.
+     - Camera shakes with a trauma impulse of 1.5.
+     - Directional sunlight flashes white (lightning strike).
+     - Physics engine calculates gravity and angular momentum: the Azure Window arch breaks off at Dwejra, and the central spans of the Great Harbour Bridge collapse into the sea.
+     - Any in-flight data packets turn bright red (`#EF4444`) and dive into the water.
+     - Disaster HUD modal opens with incident diagnostics.
+
+---
+
+### 2. What Happens When We Call "RESTORE" (`POST /api/interconnect/restore`)
+
+1. **BGP Reconvergence & Route Re-advertisement**:
+   - In Graviton4, `interconnect_alive` flips back to `True`.
+   - The daemon re-advertises prefix `10.10.0.0/16` across the BGP session and restores route propagation into the private route table (`aws_route_table.private`).
+
+2. **Unblocking the Transit Bridge**:
+   - Inbound transaction payloads from the ALB are once again accepted, encapsulated, and forwarded across the private cross-connect to `http://10.20.1.4:8080`.
+   - Azure Cobalt 100 resumes committing transactions into SQLite with autoincrementing `tx_id`.
+
+3. **Heartbeat Oscilloscope Resumption**:
+   - Real-time telemetry pings resume every 1.8 seconds.
+   - Measured round-trip latency returns to **2.1 – 2.3 ms** (the Frankfurt metro cross-connect benchmark).
+   - `/health` endpoint returns `"interconnect_status": "ONLINE"` and `"interconnect_rtt_ms": 2.21`.
+
+4. **Automatic 3D World Reconstruction**:
+   - The 3D scene's background synchronizer detects `"interconnect_status": "ONLINE"`.
+   - It plays the harmonic restoration chime (`playRestore()`).
+   - The collapsed bridge spans and Azure Window arch are smoothly interpolated back to their structural anchor points.
+   - The HUD status dot returns to pulsating emerald green (`#10B981`), and the disaster overlay dismisses.
+   - In-flight packets turn gold in transit and green upon confirmed Azure SQLite commit.
+
