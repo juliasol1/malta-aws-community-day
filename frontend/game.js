@@ -2372,33 +2372,43 @@ class MaltaIsometricScene {
             if (notifyBackend) {
                 fetch(`${apiBase}/api/interconnect/cut`, { method: 'POST' }).catch(() => {});
             }
-            window.soundEngine.playThunderAndCrash();
-            statusDot.classList.add('severed');
-            rttEl.classList.add('danger');
-            rttEl.innerText = 'TIMEOUT (∞)';
-            document.getElementById('rttUnit').innerText = 'LINK DOWN';
-            statusText.innerText = 'INTERCONNECT SEVERED (BGP WITHDRAWN)';
-            statusText.style.color = '#EF4444';
+            try { if (window.soundEngine && window.soundEngine.playThunderAndCrash) window.soundEngine.playThunderAndCrash(); } catch (e) {}
+            if (statusDot) statusDot.classList.add('severed');
+            if (rttEl) {
+                rttEl.classList.add('danger');
+                rttEl.innerText = 'TIMEOUT (∞)';
+            }
+            const rttUnit = document.getElementById('rttUnit');
+            if (rttUnit) rttUnit.innerText = 'LINK DOWN';
+            if (statusText) {
+                statusText.innerText = 'INTERCONNECT SEVERED (BGP WITHDRAWN)';
+                statusText.style.color = '#EF4444';
+            }
 
             this.cameraShake = 1.5;
             this.lightningFlash = 1.0;
             this.triggerPhysicalCollapse();
-            overlay.classList.add('active');
+            if (overlay) overlay.classList.add('active');
         } else {
             // RESTORE THE LINK!
             if (notifyBackend) {
                 fetch(`${apiBase}/api/interconnect/restore`, { method: 'POST' }).catch(() => {});
             }
-            window.soundEngine.playRestore();
-            statusDot.classList.remove('severed');
-            rttEl.classList.remove('danger');
-            this.rtt = 2.4;
-            rttEl.innerText = this.rtt.toFixed(1);
-            document.getElementById('rttUnit').innerText = 'ms RTT';
-            statusText.innerText = 'AWS INTERCONNECT – MULTICLOUD (1 Gbps MACsec)';
-            statusText.style.color = '#10B981';
+            try { if (window.soundEngine && window.soundEngine.playRestore) window.soundEngine.playRestore(); } catch (e) {}
+            if (statusDot) statusDot.classList.remove('severed');
+            if (rttEl) {
+                rttEl.classList.remove('danger');
+                this.rtt = 2.4;
+                rttEl.innerText = this.rtt.toFixed(1);
+            }
+            const rttUnit = document.getElementById('rttUnit');
+            if (rttUnit) rttUnit.innerText = 'ms RTT';
+            if (statusText) {
+                statusText.innerText = 'AWS INTERCONNECT – MULTICLOUD (1 Gbps MACsec)';
+                statusText.style.color = '#10B981';
+            }
 
-            overlay.classList.remove('active');
+            if (overlay) overlay.classList.remove('active');
             this.restoreWorld();
         }
     }
@@ -2506,16 +2516,37 @@ class MaltaIsometricScene {
         // Continuous remote sync: automatically reflect PowerShell, CLI, or API cut/restore calls
         setInterval(async () => {
             try {
-                const res = await fetch(`${getApiBase()}/health?t=${Date.now()}`, { cache: 'no-store' });
+                const res = await fetch(`${getApiBase()}/health`, { cache: 'no-store' });
                 if (res.ok) {
                     const data = await res.json();
                     const serverAlive = (data.interconnect_status === 'ONLINE');
                     if (serverAlive !== this.isInterconnectAlive) {
                         this.setInterconnectState(serverAlive, false);
                     }
+                } else {
+                    // Fallback to /api/terminal/logs if /health returns non-200
+                    const lRes = await fetch(`${getApiBase()}/api/terminal/logs`, { cache: 'no-store' });
+                    if (lRes.ok) {
+                        const lData = await lRes.json();
+                        const serverAlive = (lData.interconnect_status === 'ONLINE');
+                        if (serverAlive !== this.isInterconnectAlive) {
+                            this.setInterconnectState(serverAlive, false);
+                        }
+                    }
                 }
-            } catch (e) {}
-        }, 1000);
+            } catch (e) {
+                try {
+                    const lRes = await fetch(`${getApiBase()}/api/terminal/logs`, { cache: 'no-store' });
+                    if (lRes.ok) {
+                        const lData = await lRes.json();
+                        const serverAlive = (lData.interconnect_status === 'ONLINE');
+                        if (serverAlive !== this.isInterconnectAlive) {
+                            this.setInterconnectState(serverAlive, false);
+                        }
+                    }
+                } catch (err) {}
+            }
+        }, 800);
 
         setInterval(async () => {
             if (!this.isInterconnectAlive) return;

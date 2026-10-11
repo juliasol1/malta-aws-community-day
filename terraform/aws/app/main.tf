@@ -141,7 +141,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def do_GET(self):
         global interconnect_alive, last_azure_seen
-        if self.path == '/health':
+        clean_path = self.path.split('?')[0]
+        if clean_path == '/health':
             self.send_response(200)
             self.send_header('Content-Type', 'application/json')
             self.send_header('Access-Control-Allow-Origin', '*')
@@ -159,7 +160,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 "interconnect_rtt_ms": round(2.1 + (time.time() % 0.6) * 0.5, 2) if is_active else None
             }
             self.wfile.write(json.dumps(resp, indent=2).encode())
-        elif self.path == '/terminal' or self.path == '/terminal/':
+        elif clean_path == '/terminal' or clean_path == '/terminal/':
             self.send_response(302)
             self.send_header('Location', '/terminal.html')
             self.end_headers()
@@ -226,7 +227,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def do_POST(self):
         global interconnect_alive
-        if self.path == '/internal/bridge/result':
+        clean_path = self.path.split('?')[0]
+        if clean_path == '/internal/bridge/result':
             content_length = int(self.headers.get('Content-Length', 0))
             data = json.loads(self.rfile.read(content_length).decode('utf-8'))
             req_id = data.get('id')
@@ -236,7 +238,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                     bridge_responses[req_id]["event"].set()
             self.send_response(200)
             self.end_headers()
-        elif self.path.startswith('/api/transactions'):
+        elif clean_path.startswith('/api/transactions'):
             if not interconnect_alive:
                 add_aws_log("ERROR", "POST /api/transactions -> 502 Bad Gateway [DROPPED: Interconnect SEVERED]")
                 add_azure_log("DROP", "0 transactions received across Interconnect (BGP withdrawn)")
@@ -262,7 +264,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
             self.wfile.write(res.get('body', '{}').encode())
-        elif self.path == '/api/interconnect/cut':
+        elif clean_path == '/api/interconnect/cut':
             interconnect_alive = False
             add_aws_log("CRIT", "💥 BGP WITHDRAWAL: Link severed by operator. 10.20.0.0/16 routes withdrawn!")
             add_azure_log("WARN", "⚠️ BGP session lost. Remote AWS peer 10.10.0.0/16 unreachable")
@@ -271,7 +273,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
             self.wfile.write(json.dumps({"status": "SEVERED"}).encode())
-        elif self.path == '/api/interconnect/restore':
+        elif clean_path == '/api/interconnect/restore':
             interconnect_alive = True
             add_aws_log("OK", "✨ BGP RE-ESTABLISHED: Interconnect online (1 Gbps MACsec link restored)")
             add_azure_log("OK", "✅ BGP session UP. Cobalt 100 ready to accept Graviton4 transactions")
