@@ -2315,6 +2315,8 @@ class MaltaIsometricScene {
                 this.toggleInterconnect();
             } else if (e.code === 'KeyT') {
                 this.sendBatchTransactions();
+            } else if (e.code === 'KeyL') {
+                window.open('terminal.html', '_blank');
             }
         });
 
