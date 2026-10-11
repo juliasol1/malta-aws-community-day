@@ -150,6 +150,12 @@ SEVERED                                 AWS Graviton4 ARM64 (Fargate)
 try { Invoke-RestMethod -Uri "$ALB/api/transactions" -Method POST -Body '{"payload":"storm_tx"}' -ContentType "application/json" } catch { Write-Host "-> REJECTED BY GRAVITON4: $($_.Exception.Message) (BGP Withdrawn)" -ForegroundColor Red }
 ```
 
+### 4.4 Optional Pro-Move: 100% Real Azure Hypervisor/NSG Packet Drop
+```powershell
+az network nsg rule update -g awscd-core-rg --nsg-name awscd-backend-nsg -n Allow-AWS-HTTP-Inbound --access Deny --output table
+```
+*In the Azure Portal, rule `Allow-AWS-HTTP-Inbound` turns red with a `Deny` status, physically dropping TCP packets at Azure's Virtual Filtering Platform.*
+
 * **What the audience sees:**
   * **3D Scene:** Thunder, lightning flash, the Azure Window arch shatters into the sea, bridge spans collapse, red data packets plummet into the water.
   * **Terminal:** AWS logs display `💥 BGP WITHDRAWAL: Link severed by operator` and `[ERROR] 502 Bad Gateway [DROPPED: Interconnect SEVERED]`. Azure logs show `[DROP] 0 transactions received across Interconnect`.
@@ -166,6 +172,11 @@ try { Invoke-RestMethod -Uri "$ALB/api/transactions" -Method POST -Body '{"paylo
 ### 5.1 Restore the Interconnect (or hit `[SPACE]`)
 ```powershell
 Invoke-RestMethod -Uri "$ALB/api/interconnect/restore" -Method POST
+```
+
+### 5.1b Restore Azure NSG Rule (if Denied in 4.4)
+```powershell
+az network nsg rule update -g awscd-core-rg --nsg-name awscd-backend-nsg -n Allow-AWS-HTTP-Inbound --access Allow --output table
 ```
 
 ### 5.2 Proof: Healthcheck returns to `ONLINE` with 2.1–2.3 ms RTT
