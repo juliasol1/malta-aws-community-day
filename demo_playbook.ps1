@@ -70,6 +70,9 @@ Write-Host "[STEP 3] Transmitting Batch SQL Transactions (Graviton4 -> Cobalt 10
 Write-Host "Total verified commits in Azure SQLite database:" -ForegroundColor DarkGray
 Invoke-RestMethod -Uri "$ALB/api/status" | Format-Table
 
+Write-Host "Direct Proof: Inspecting raw SQLite table inside Azure Cobalt container..." -ForegroundColor DarkGray
+(az container exec -g awscd-backend-rg -n awscd-cobalt-container --exec-command "sqlite3 /tmp/transactions.db .dump") | Select-String "^\s*\([0-9]|INSERT INTO tx_log" | Select-Object -Last 5
+
 # =============================================================================
 # STEP 4: TRIGGER INTERCONNECT SEVER (The Azure Window Drop / Storm)
 # =============================================================================

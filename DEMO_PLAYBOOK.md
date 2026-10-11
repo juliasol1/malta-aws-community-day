@@ -121,6 +121,24 @@ tx_id status    target_chip
 Invoke-RestMethod -Uri "$ALB/api/status" | Format-Table
 ```
 
+### 3.3 Inspect Real Committed Records Directly Inside Azure Cobalt Container
+> 🗣️ **Speaker Script:**  
+> *"Don't just take the API's word for it. Let's exec straight into the running Azure Cobalt container in Frankfurt and inspect the physical SQLite database table on disk."*
+
+```powershell
+$env:REQUESTS_CA_BUNDLE = "$PWD\trusted_bundle.pem"
+(az container exec -g awscd-backend-rg -n awscd-cobalt-container --exec-command "sqlite3 /tmp/transactions.db .dump") | Select-String "^\s*\([0-9]|INSERT INTO tx_log" | Select-Object -Last 5
+```
+
+**Expected Output:**
+```text
+  (55,1791754611.8280056,'aws-graviton4-fargate','eu-central-1','ARM64-Neoverse-V2','COMMITTED'),
+  (56,1791754612.2478378,'aws-graviton4-fargate','eu-central-1','ARM64-Neoverse-V2','COMMITTED'),
+  (57,1791754612.6401672,'aws-graviton4-fargate','eu-central-1','ARM64-Neoverse-V2','COMMITTED'),
+  (58,1791754613.0286071,'aws-graviton4-fargate','eu-central-1','ARM64-Neoverse-V2','COMMITTED'),
+  (59,1791754613.4128764,'aws-graviton4-fargate','eu-central-1','ARM64-Neoverse-V2','COMMITTED');
+```
+
 ---
 
 ## 💥 ACT 4: The Disaster — Severing the Interconnect
