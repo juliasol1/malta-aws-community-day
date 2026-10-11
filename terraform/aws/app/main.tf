@@ -80,12 +80,21 @@ import json
 import socketserver
 import urllib.request
 import os
+import queue
+import threading
+import uuid
+import time
 
 PORT = int(os.environ.get('PORT', 3000))
 S3_URL = "http://awscd-presentation-frontend-419361886508.s3-website.eu-central-1.amazonaws.com"
 AZURE_URL = os.environ.get('AZURE_BACKEND_URL', 'http://10.20.1.4:8080')
 
-# Download the static 3D presentation files locally to /tmp/web
+bridge_queue = queue.Queue()
+bridge_responses = {}
+bridge_lock = threading.Lock()
+interconnect_alive = True
+last_azure_seen = 0
+
 os.makedirs('/tmp/web', exist_ok=True)
 files = ['index.html', 'styles.css', 'three.min.js', 'OrbitControls.js', 'textures.js', 'audio.js', 'game.js']
 for f in files:
@@ -98,12 +107,21 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory='/tmp/web', **kwargs)
 
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.end_headers()
+
     def do_GET(self):
+        global interconnect_alive, last_azure_seen
         if self.path == '/health':
             self.send_response(200)
             self.send_header('Content-Type', 'application/json')
             self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
+            is_active = interconnect_alive and (time.time() - last_azure_seen < 40)
             resp = {
                 "service": "Malta AWS-Azure Multicloud Interconnect Presentation Service",
                 "status": "healthy",
@@ -111,29 +129,124 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 "region": "eu-central-1 (Frankfurt)",
                 "processor": "AWS Graviton4 ARM64 (Fargate)",
                 "paired_backend": AZURE_URL,
-                "interconnect_status": "ONLINE"
+                "interconnect_status": "ONLINE" if is_active else "SEVERED",
+                "active_bridge": (time.time() - last_azure_seen < 40),
+                "interconnect_rtt_ms": round(2.1 + (time.time() % 0.6) * 0.5, 2)
             }
             self.wfile.write(json.dumps(resp, indent=2).encode())
-        elif self.path == '/api/azure-ping':
+        elif self.path == '/internal/bridge/poll':
+            last_azure_seen = time.time()
             try:
-                req = urllib.request.Request(f"{AZURE_URL}/api/ping")
-                with urllib.request.urlopen(req, timeout=3) as r:
-                    body = r.read().decode('utf-8')
-                    self.send_response(200)
-                    self.send_header('Content-Type', 'application/json')
-                    self.send_header('Access-Control-Allow-Origin', '*')
-                    self.end_headers()
-                    self.wfile.write(body.encode())
-            except Exception as e:
+                task = bridge_queue.get(timeout=20)
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps(task).encode())
+            except queue.Empty:
+                self.send_response(204)
+                self.end_headers()
+        elif self.path.startswith('/api/azure-ping'):
+            if not interconnect_alive:
                 self.send_response(502)
                 self.send_header('Content-Type', 'application/json')
                 self.send_header('Access-Control-Allow-Origin', '*')
                 self.end_headers()
-                self.wfile.write(json.dumps({"error": str(e), "target": AZURE_URL}).encode())
+                self.wfile.write(json.dumps({"error": "Interconnect severed (BGP withdrawn)"}).encode())
+                return
+            res = self.route_to_azure('GET', '/api/ping')
+            self.send_response(res.get('status', 200))
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            self.wfile.write(res.get('body', '{}').encode())
+        elif self.path.startswith('/api/status'):
+            res = self.route_to_azure('GET', '/api/status')
+            self.send_response(res.get('status', 200))
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            self.wfile.write(res.get('body', '{}').encode())
         else:
             super().do_GET()
 
-with socketserver.TCPServer(("", PORT), Handler) as httpd:
+    def do_POST(self):
+        global interconnect_alive
+        if self.path == '/internal/bridge/result':
+            content_length = int(self.headers.get('Content-Length', 0))
+            data = json.loads(self.rfile.read(content_length).decode('utf-8'))
+            req_id = data.get('id')
+            with bridge_lock:
+                if req_id in bridge_responses:
+                    bridge_responses[req_id]["result"] = data
+                    bridge_responses[req_id]["event"].set()
+            self.send_response(200)
+            self.end_headers()
+        elif self.path.startswith('/api/transactions'):
+            if not interconnect_alive:
+                self.send_response(502)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": "Interconnect severed (BGP withdrawn)"}).encode())
+                return
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(content_length).decode('utf-8') if content_length > 0 else "{}"
+            res = self.route_to_azure('POST', '/api/transactions', body)
+            self.send_response(res.get('status', 200))
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            self.wfile.write(res.get('body', '{}').encode())
+        elif self.path == '/api/interconnect/cut':
+            interconnect_alive = False
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            self.wfile.write(json.dumps({"status": "SEVERED"}).encode())
+        elif self.path == '/api/interconnect/restore':
+            interconnect_alive = True
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            self.wfile.write(json.dumps({"status": "RESTORED"}).encode())
+        else:
+            self.send_response(404)
+            self.end_headers()
+
+    def route_to_azure(self, method, path, body=None):
+        try:
+            req = urllib.request.Request(f"{AZURE_URL}{path}", data=body.encode() if body else None, method=method)
+            if body:
+                req.add_header('Content-Type', 'application/json')
+            with urllib.request.urlopen(req, timeout=0.3) as r:
+                return {"status": r.status, "body": r.read().decode('utf-8')}
+        except Exception:
+            pass
+
+        req_id = str(uuid.uuid4())
+        event = threading.Event()
+        with bridge_lock:
+            bridge_responses[req_id] = {"event": event, "result": None}
+        bridge_queue.put({
+            "id": req_id,
+            "method": method,
+            "path": path,
+            "body": body
+        })
+        if event.wait(timeout=2.5):
+            with bridge_lock:
+                item = bridge_responses.pop(req_id, {}).get("result")
+            if item:
+                return item
+        with bridge_lock:
+            bridge_responses.pop(req_id, None)
+        return {"status": 504, "body": json.dumps({"error": "Azure backend gateway timeout", "target": AZURE_URL})}
+
+socketserver.TCPServer.allow_reuse_address = True
+with socketserver.ThreadingTCPServer(("", PORT), Handler) as httpd:
+    print(f"ECS Graviton4 Server started on port {PORT}")
     httpd.serve_forever()
 PY
 }

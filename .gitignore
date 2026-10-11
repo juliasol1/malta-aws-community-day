@@ -45,4 +45,6 @@ terraform.rc
 
 # Local agent caches and skills
 .agent/
-.agents/
+.agents/
+*.pem
+
