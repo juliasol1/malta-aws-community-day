@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Great Maltese Sky Bridge | 2.5D Isometric Multicloud Interconnect</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;800&display=swap" rel="stylesheet">
+</head>
+<body>
+
+    <!-- Fullscreen 3D Viewport Target -->
+    <div id="viewport"></div>
+
+    <!-- Floating Mission Header: Dual Cloud Telemetry -->
+    <header class="mission-header">
+        <!-- AWS Cloud Badge (Valletta) -->
+        <div class="cloud-badge aws">
+            <div class="cloud-logo">🟧</div>
+            <div>
+                <div class="cloud-title">AWS Cloud &bull; Valletta Citadel</div>
+                <div class="cloud-subtitle">eu-central-1 (Frankfurt) &bull; 10.10.10.x</div>
+                <div class="cloud-tags">
+                    <span class="tag graviton">Graviton4 ARM64</span>
+                    <span class="tag graviton">ECS Fargate</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Center Interconnect Live Telemetry -->
+        <div class="interconnect-deck">
+            <div class="interconnect-status-row">
+                <span class="status-dot" id="statusDot"></span>
+                <span id="interconnectStatusText">AWS Interconnect &mdash; Multicloud (1 Gbps MACsec)</span>
+            </div>
+            <div class="rtt-container">
+                <span class="rtt-number" id="rttDisplay">2.4</span>
+                <span class="rtt-unit" id="rttUnit">ms RTT</span>
+            </div>
+            <!-- Live ECG / Heartbeat Canvas -->
+            <canvas id="heartbeatCanvas" class="heartbeat-canvas"></canvas>
+        </div>
+
+        <!-- Azure Cloud Badge (Gozo) -->
+        <div class="cloud-badge azure">
+            <div>
+                <div class="cloud-title">Azure Cloud &bull; Gozo Outpost</div>
+                <div class="cloud-subtitle">germanywestcentral (Frankfurt) &bull; 10.20.1.4</div>
+                <div class="cloud-tags">
+                    <span class="tag cobalt">Cobalt 100 ARM64 (ACI)</span>
+                    <span class="tag cobalt">Zero-Trust VNet</span>
+                </div>
+            </div>
+            <div class="cloud-logo">🟦</div>
+        </div>
+    </header>
+
+    <!-- Floating Sub-Bar: Traffic & Protocol Counters -->
+    <div class="traffic-metrics-bar">
+        <div class="metric-pill">
+            Transactions Sent: <span id="txSentDisplay">1420</span>
+        </div>
+        <div class="metric-pill">
+            Transit Protocol: <span>BGP AS 64512 &bull; Direct Connect &harr; ExpressRoute</span>
+        </div>
+        <div class="metric-pill">
+            Azure DB Commits: <span id="txAckDisplay" style="color: #38BDF8;">1420</span>
+        </div>
+    </div>
+
+    <!-- Floating Badge: 2.5D Isometric Architecture -->
+    <div class="aoe-badge">
+        🏰 2.5D ISOMETRIC HARBOUR &bull; VALLETTA &harr; GOZO CHANNEL
+    </div>
+
+    <!-- Disaster Overlay (The Azure Window Fall & Bridge Collapse) -->
+    <div class="disaster-overlay" id="disasterOverlay">
+        <div class="disaster-card">
+            <div class="disaster-title">
+                <span>⚡</span> CRITICAL: INTERCONNECT SEVERED
+            </div>
+            <div class="disaster-quote">
+                &ldquo;Malta lost the Azure Window to a storm in 2017.<br>
+                Today, we&rsquo;re doing it ourselves &mdash; live on stage, and entirely by design.&rdquo;
+            </div>
+            <div class="disaster-grid">
+                <div class="disaster-row">
+                    Interconnect Span: <strong>COLLAPSED INTO SEA</strong>
+                </div>
+                <div class="disaster-row">
+                    Azure Window: <strong>COLLAPSED AT DWEJRA</strong>
+                </div>
+                <div class="disaster-row">
+                    Round Trip Time: <strong>TIMEOUT (&infin;)</strong>
+                </div>
+                <div class="disaster-row">
+                    BGP Route Table: <strong>WITHDRAWN (AS-PATH LOST)</strong>
+                </div>
+            </div>
+            <button class="btn btn-restore" id="btnCloseDisaster" style="margin: 0 auto;">
+                👀 Inspect 3D Ruins / View Partitions
+            </button>
+        </div>
+    </div>
+
+    <!-- Floating Stage Control Deck (Speaker Buttons) -->
+    <footer class="stage-deck">
+        <div class="stage-deck-title">
+            🎙️ Speaker Controls &bull; Hotkeys: [T] Batch SQL &bull; [SPACE / K] Cut Link &bull; Mouse Drag to Rotate &bull; Scroll to Zoom
+        </div>
+        <div class="stage-btn-group">
+            <button class="btn btn-tx" id="btnSendTx">
+                ⚡ Send Batch SQL [T]
+            </button>
+            <button class="btn btn-cut" id="btnCutLink">
+                ✂️ Cut Interconnect [SPACE]
+            </button>
+            <button class="btn btn-restore" id="btnRestoreLink">
+                🔄 Restore Interconnect
+            </button>
+            <button class="btn btn-ambient" id="btnResetCam">
+                🎯 Reset Cam
+            </button>
+            <button class="btn btn-ambient" id="btnAudioToggle">
+                🔊 Sound: ON
+            </button>
+        </div>
+    </footer>
+
+    <!-- Three.js Offline Scripts -->
+    <script src="three.min.js"></script>
+    <script src="OrbitControls.js"></script>
+    <script src="textures.js"></script>
+    <script src="audio.js"></script>
+    <script src="game.js"></script>
+</body>
+</html>
