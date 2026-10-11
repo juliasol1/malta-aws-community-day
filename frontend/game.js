@@ -2539,22 +2539,22 @@ class MaltaIsometricScene {
     sendBatchTransactions() {
         if (!this.isInterconnectAlive) {
             window.soundEngine.playAlarm();
-            return;
+        } else {
+            window.soundEngine.playDataWhoosh();
         }
 
-        window.soundEngine.playDataWhoosh();
         const apiBase = (window.location.hostname === 'localhost' || window.location.hostname.includes('s3-website'))
             ? 'http://awscd-presentation-alb-947133463.eu-central-1.elb.amazonaws.com'
             : '';
 
         for (let i = 0; i < 10; i++) {
             setTimeout(() => {
-                if (!this.isInterconnectAlive) return;
                 this.txSent++;
                 document.getElementById('txSentDisplay').innerText = this.txSent;
 
                 // Spawn real in-flight 3D packet tied to this specific HTTP transaction
-                const packet = this.spawnDataPacket(-20, 11.6, (Math.random() - 0.5) * 2.2, 20, '#F59E0B');
+                const initialColor = this.isInterconnectAlive ? '#F59E0B' : '#EF4444';
+                const packet = this.spawnDataPacket(-20, 11.6, (Math.random() - 0.5) * 2.2, 20, initialColor);
 
                 fetch(`${apiBase}/api/transactions`, {
                     method: 'POST',

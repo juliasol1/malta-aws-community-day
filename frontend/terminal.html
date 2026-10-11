@@ -470,8 +470,8 @@
 
         let isInterconnectAlive = true;
         let isPaused = false;
-        let lastAwsLen = 0;
-        let lastAzureLen = 0;
+        let lastAwsJson = '';
+        let lastAzureJson = '';
 
         const awsTerminal = document.getElementById('awsTerminal');
         const azureTerminal = document.getElementById('azureTerminal');
@@ -536,19 +536,21 @@
 
                 // Sync AWS logs
                 if (data.aws_logs && Array.isArray(data.aws_logs)) {
-                    if (data.aws_logs.length !== lastAwsLen) {
+                    const currentAwsJson = JSON.stringify(data.aws_logs);
+                    if (currentAwsJson !== lastAwsJson) {
                         awsTerminal.innerHTML = '';
                         data.aws_logs.forEach(log => appendLog(awsTerminal, log));
-                        lastAwsLen = data.aws_logs.length;
+                        lastAwsJson = currentAwsJson;
                     }
                 }
 
                 // Sync Azure logs
                 if (data.azure_logs && Array.isArray(data.azure_logs)) {
-                    if (data.azure_logs.length !== lastAzureLen) {
+                    const currentAzureJson = JSON.stringify(data.azure_logs);
+                    if (currentAzureJson !== lastAzureJson) {
                         azureTerminal.innerHTML = '';
                         data.azure_logs.forEach(log => appendLog(azureTerminal, log));
-                        lastAzureLen = data.azure_logs.length;
+                        lastAzureJson = currentAzureJson;
                     }
                 }
             } catch (err) {
@@ -586,22 +588,25 @@
         async function triggerSendTx() {
             const batch = 5;
             for (let i = 0; i < batch; i++) {
-                try {
-                    fetch(`${apiBase}/api/transactions`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            source: 'aws-graviton4-fargate',
-                            region: 'eu-central-1',
-                            chip: 'ARM64-Neoverse-V2',
-                            amount: 1000 + i * 50
-                        })
-                    }).then(() => {
-                        fetchLogs();
-                        fetchStatusCount();
-                    }).catch(() => {});
-                } catch (e) {}
+                fetch(`${apiBase}/api/transactions`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        source: 'aws-graviton4-fargate',
+                        region: 'eu-central-1',
+                        chip: 'ARM64-Neoverse-V2',
+                        amount: 1000 + i * 50
+                    })
+                }).then(() => {
+                    fetchLogs();
+                    fetchStatusCount();
+                }).catch(() => {
+                    fetchLogs();
+                });
             }
+            setTimeout(fetchLogs, 150);
+            setTimeout(fetchLogs, 400);
+            setTimeout(fetchLogs, 800);
         }
 
         // Listeners
@@ -611,8 +616,8 @@
         document.getElementById('btnClearLogs').addEventListener('click', () => {
             awsTerminal.innerHTML = '';
             azureTerminal.innerHTML = '';
-            lastAwsLen = 0;
-            lastAzureLen = 0;
+            lastAwsJson = '';
+            lastAzureJson = '';
         });
 
         // Keyboard hotkeys
