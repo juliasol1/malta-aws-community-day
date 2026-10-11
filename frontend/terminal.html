@@ -274,7 +274,7 @@
             font-size: 12px;
             line-height: 1.6;
             color: #CBD5E1;
-            scroll-behavior: smooth;
+            scroll-behavior: auto;
         }
 
         .terminal-screen::-webkit-scrollbar {
@@ -292,15 +292,9 @@
         .log-entry {
             display: flex;
             gap: 10px;
-            margin-bottom: 4px;
+            margin-bottom: 3px;
             word-break: break-all;
             white-space: pre-wrap;
-            animation: fadeIn 0.15s ease-out;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(2px); }
-            to { opacity: 1; transform: translateY(0); }
         }
 
         .log-time {
@@ -481,29 +475,62 @@
         const txCounterFooter = document.getElementById('txCounterFooter');
         const bridgeStatusFooter = document.getElementById('bridgeStatusFooter');
 
-        function appendLog(terminal, log) {
-            const row = document.createElement('div');
-            row.className = 'log-entry';
+        function syncTerminal(terminal, logs) {
+            if (!logs || !Array.isArray(logs) || logs.length === 0) return;
 
-            const timeSpan = document.createElement('span');
-            timeSpan.className = 'log-time';
-            timeSpan.innerText = log.time || new Date().toISOString().slice(11, 23);
+            // Check if user was already near bottom (within 40px)
+            const wasNearBottom = (terminal.scrollHeight - terminal.scrollTop - terminal.clientHeight) < 40;
 
-            const levelSpan = document.createElement('span');
-            const lvl = log.level || 'INFO';
-            levelSpan.className = `log-level lvl-${lvl}`;
-            levelSpan.innerText = lvl;
+            const lastRenderedKey = terminal.lastElementChild ? terminal.lastElementChild.dataset.key : null;
+            let startIndex = 0;
+            if (lastRenderedKey) {
+                for (let i = logs.length - 1; i >= 0; i--) {
+                    if (`${logs[i].time}|${logs[i].level}|${logs[i].msg}` === lastRenderedKey) {
+                        startIndex = i + 1;
+                        break;
+                    }
+                }
+            }
 
-            const msgSpan = document.createElement('span');
-            msgSpan.className = 'log-msg';
-            msgSpan.innerText = log.msg || '';
+            if (startIndex >= logs.length) return; // No new logs to render, zero changes!
 
-            row.appendChild(timeSpan);
-            row.appendChild(levelSpan);
-            row.appendChild(msgSpan);
+            const fragment = document.createDocumentFragment();
+            for (let i = startIndex; i < logs.length; i++) {
+                const log = logs[i];
+                const row = document.createElement('div');
+                row.className = 'log-entry';
+                row.dataset.key = `${log.time}|${log.level}|${log.msg}`;
 
-            terminal.appendChild(row);
-            terminal.scrollTop = terminal.scrollHeight;
+                const timeSpan = document.createElement('span');
+                timeSpan.className = 'log-time';
+                timeSpan.innerText = log.time || '';
+
+                const levelSpan = document.createElement('span');
+                const lvl = log.level || 'INFO';
+                levelSpan.className = `log-level lvl-${lvl}`;
+                levelSpan.innerText = lvl;
+
+                const msgSpan = document.createElement('span');
+                msgSpan.className = 'log-msg';
+                msgSpan.innerText = log.msg || '';
+
+                row.appendChild(timeSpan);
+                row.appendChild(levelSpan);
+                row.appendChild(msgSpan);
+                fragment.appendChild(row);
+            }
+
+            terminal.appendChild(fragment);
+
+            // Keep DOM clean by keeping max 200 items
+            while (terminal.childElementCount > 200) {
+                terminal.removeChild(terminal.firstElementChild);
+            }
+
+            // Only auto-scroll if user was already at the bottom
+            if (wasNearBottom || !lastRenderedKey) {
+                terminal.scrollTop = terminal.scrollHeight;
+            }
         }
 
         async function fetchLogs() {
@@ -534,25 +561,9 @@
                 bridgeStatusFooter.innerText = data.active_bridge ? 'Bridge: CONNECTED (Worker Active)' : 'Bridge: IDLE';
                 bridgeStatusFooter.style.color = data.active_bridge ? '#10B981' : '#F59E0B';
 
-                // Sync AWS logs
-                if (data.aws_logs && Array.isArray(data.aws_logs)) {
-                    const currentAwsJson = JSON.stringify(data.aws_logs);
-                    if (currentAwsJson !== lastAwsJson) {
-                        awsTerminal.innerHTML = '';
-                        data.aws_logs.forEach(log => appendLog(awsTerminal, log));
-                        lastAwsJson = currentAwsJson;
-                    }
-                }
-
-                // Sync Azure logs
-                if (data.azure_logs && Array.isArray(data.azure_logs)) {
-                    const currentAzureJson = JSON.stringify(data.azure_logs);
-                    if (currentAzureJson !== lastAzureJson) {
-                        azureTerminal.innerHTML = '';
-                        data.azure_logs.forEach(log => appendLog(azureTerminal, log));
-                        lastAzureJson = currentAzureJson;
-                    }
-                }
+                // Incremental sync of logs (no innerHTML wipes, no re-scrolling!)
+                syncTerminal(awsTerminal, data.aws_logs);
+                syncTerminal(azureTerminal, data.azure_logs);
             } catch (err) {
                 // If temporary error
             }
