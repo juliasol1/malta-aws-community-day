@@ -82,11 +82,24 @@ import urllib.request
 import os
 
 PORT = int(os.environ.get('PORT', 3000))
+S3_URL = "http://awscd-presentation-frontend-419361886508.s3-website.eu-central-1.amazonaws.com"
 AZURE_URL = os.environ.get('AZURE_BACKEND_URL', 'http://10.20.1.4:8080')
 
-class Handler(http.server.BaseHTTPRequestHandler):
+# Download the static 3D presentation files locally to /tmp/web
+os.makedirs('/tmp/web', exist_ok=True)
+files = ['index.html', 'styles.css', 'three.min.js', 'OrbitControls.js', 'textures.js', 'audio.js', 'game.js']
+for f in files:
+    try:
+        urllib.request.urlretrieve(f"{S3_URL}/{f}", f"/tmp/web/{f}")
+    except Exception as e:
+        print(f"Failed to fetch {f}: {e}")
+
+class Handler(http.server.SimpleHTTPRequestHandler):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, directory='/tmp/web', **kwargs)
+
     def do_GET(self):
-        if self.path == '/' or self.path == '/health':
+        if self.path == '/health':
             self.send_response(200)
             self.send_header('Content-Type', 'application/json')
             self.send_header('Access-Control-Allow-Origin', '*')
@@ -118,8 +131,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self.end_headers()
                 self.wfile.write(json.dumps({"error": str(e), "target": AZURE_URL}).encode())
         else:
-            self.send_response(404)
-            self.end_headers()
+            super().do_GET()
 
 with socketserver.TCPServer(("", PORT), Handler) as httpd:
     httpd.serve_forever()
