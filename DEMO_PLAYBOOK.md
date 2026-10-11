@@ -101,6 +101,7 @@ az network vnet show -g awscd-core-rg -n awscd-core-vnet --query "{VNet:name, Ad
 
 ### 3.1 Send 5 Real Transactions from PowerShell (or press `[T]` in UI)
 ```powershell
+if (-not $ALB) { $ALB = "http://awscd-presentation-alb-947133463.eu-central-1.elb.amazonaws.com" }
 1..5 | ForEach-Object { Invoke-RestMethod -Uri "$ALB/api/transactions" -Method POST -Body (@{ source = "aws-graviton4-fargate"; region = "eu-central-1"; chip = "ARM64-Neoverse-V2"; amount = 1000 + $_ * 200 } | ConvertTo-Json) -ContentType "application/json" | Select-Object tx_id, status, target_chip }
 ```
 
