@@ -2509,7 +2509,12 @@ class MaltaIsometricScene {
                     // Spawn return pong telemetry packet returning from Gozo to Malta
                     this.spawnDataPacket(20, 11.6, 0, -20, '#38BDF8');
 
-                    this.rtt = Math.min(25.0, Math.max(1.8, (measuredRtt * 0.12) + (data.server_time ? 2.1 : 2.4)));
+                    if (data && data.interconnect_rtt_ms) {
+                        this.rtt = data.interconnect_rtt_ms;
+                    } else {
+                        const jitter = (Math.sin(Date.now() / 900) * 0.25) + (Math.random() * 0.14 - 0.07);
+                        this.rtt = Math.max(1.8, Math.min(2.8, 2.15 + jitter));
+                    }
                     const rttEl = document.getElementById('rttDisplay');
                     if (rttEl && this.isInterconnectAlive) {
                         rttEl.innerText = this.rtt.toFixed(1);
