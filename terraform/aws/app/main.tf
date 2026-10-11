@@ -73,6 +73,59 @@ resource "aws_cloudwatch_log_group" "app" {
 # ECS Task Definition (Graviton4 ARM64 Native)
 # -----------------------------------------------------------------------------
 
+locals {
+  server_script = <<-PY
+import http.server
+import json
+import socketserver
+import urllib.request
+import os
+
+PORT = int(os.environ.get('PORT', 3000))
+AZURE_URL = os.environ.get('AZURE_BACKEND_URL', 'http://10.20.1.4:8080')
+
+class Handler(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path == '/' or self.path == '/health':
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            resp = {
+                "service": "Malta AWS-Azure Multicloud Interconnect Presentation Service",
+                "status": "healthy",
+                "cloud": "AWS",
+                "region": "eu-central-1 (Frankfurt)",
+                "processor": "AWS Graviton4 ARM64 (Fargate)",
+                "paired_backend": AZURE_URL,
+                "interconnect_status": "ONLINE"
+            }
+            self.wfile.write(json.dumps(resp, indent=2).encode())
+        elif self.path == '/api/azure-ping':
+            try:
+                req = urllib.request.Request(f"{AZURE_URL}/api/ping")
+                with urllib.request.urlopen(req, timeout=3) as r:
+                    body = r.read().decode('utf-8')
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'application/json')
+                    self.send_header('Access-Control-Allow-Origin', '*')
+                    self.end_headers()
+                    self.wfile.write(body.encode())
+            except Exception as e:
+                self.send_response(502)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(e), "target": AZURE_URL}).encode())
+        else:
+            self.send_response(404)
+            self.end_headers()
+
+with socketserver.TCPServer(("", PORT), Handler) as httpd:
+    httpd.serve_forever()
+PY
+}
+
 resource "aws_ecs_task_definition" "app" {
   family                   = "${var.prefix}-malta-app"
   requires_compatibilities = ["FARGATE"]
@@ -93,6 +146,11 @@ resource "aws_ecs_task_definition" "app" {
       name      = "malta-presentation-app"
       image     = var.app_image
       essential = true
+      command = [
+        "python3",
+        "-c",
+        local.server_script
+      ]
 
       portMappings = [
         {

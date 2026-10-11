@@ -59,6 +59,7 @@ output "gateway_id" {
 }
 
 output "gateway_public_ip" {
-  description = "Public IP address of the gateway (null if enable_gateway is false)."
-  value       = var.enable_gateway ? azurerm_public_ip.gateway[0].ip_address : null
+  description = "Public IP address of the gateway (null for ExpressRoute or if gateway is disabled)."
+  value       = var.enable_gateway && var.gateway_type == "Vpn" ? azurerm_public_ip.gateway[0].ip_address : null
 }
+

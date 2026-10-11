@@ -34,6 +34,17 @@ resource "azurerm_subnet" "backend" {
   resource_group_name  = azurerm_resource_group.core.name
   virtual_network_name = azurerm_virtual_network.core.name
   address_prefixes     = [cidrsubnet(var.vnet_address_space[0], 8, 1)] # 10.20.1.0/24
+
+  delegation {
+    name = "aci-delegation"
+
+    service_delegation {
+      name = "Microsoft.ContainerInstance/containerGroups"
+      actions = [
+        "Microsoft.Network/virtualNetworks/subnets/action"
+      ]
+    }
+  }
 }
 
 # Dedicated subnet for PostgreSQL Flexible Server or data persistence tier.
@@ -183,9 +194,9 @@ resource "azurerm_subnet_network_security_group_association" "database" {
 # Gateway Infrastructure (ExpressRoute / VPN Gateway for Interconnect)
 # -----------------------------------------------------------------------------
 
-# Public IP required by Azure Virtual Network Gateway resource architecture
+# Public IP required when Gateway is Vpn; ExpressRoute gateways connect privately and do not use a public IP.
 resource "azurerm_public_ip" "gateway" {
-  count               = var.enable_gateway ? 1 : 0
+  count               = var.enable_gateway && var.gateway_type == "Vpn" ? 1 : 0
   name                = "${var.prefix}-gw-pip"
   location            = azurerm_resource_group.core.location
   resource_group_name = azurerm_resource_group.core.name
@@ -203,10 +214,23 @@ resource "azurerm_virtual_network_gateway" "interconnect" {
   sku                 = var.gateway_sku
   tags                = var.tags
 
-  ip_configuration {
-    name                          = "vnetGatewayConfig"
-    public_ip_address_id          = azurerm_public_ip.gateway[0].id
-    private_ip_address_allocation = "Dynamic"
-    subnet_id                     = azurerm_subnet.gateway.id
+  dynamic "ip_configuration" {
+    for_each = var.gateway_type == "Vpn" ? [1] : []
+    content {
+      name                          = "vnetGatewayConfig"
+      public_ip_address_id          = azurerm_public_ip.gateway[0].id
+      private_ip_address_allocation = "Dynamic"
+      subnet_id                     = azurerm_subnet.gateway.id
+    }
+  }
+
+  dynamic "ip_configuration" {
+    for_each = var.gateway_type == "ExpressRoute" ? [1] : []
+    content {
+      name                          = "vnetGatewayConfig"
+      private_ip_address_allocation = "Dynamic"
+      subnet_id                     = azurerm_subnet.gateway.id
+    }
   }
 }
+

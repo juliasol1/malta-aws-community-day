@@ -43,7 +43,7 @@ variable "ecs_security_group_id" {
 variable "app_image" {
   description = "Docker image for the Malta keynote presentation frontend & telemetry service."
   type        = string
-  default     = "public.ecr.aws/nginx/nginx:alpine-slim"
+  default     = "python:3.11-alpine"
 }
 
 variable "container_port" {
@@ -73,7 +73,7 @@ variable "memory" {
 variable "azure_backend_url" {
   description = "Private URL of the Azure Cobalt 100 backend across the Multicloud Interconnect."
   type        = string
-  default     = "http://10.20.1.10:8080"
+  default     = "http://10.20.1.4:8080"
 }
 
 variable "tags" {
